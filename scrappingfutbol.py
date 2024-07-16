@@ -143,29 +143,32 @@ for numero in range(30, 39):
             else:
                 print(f'Error al realizar la solicitud para {partido_url}: {response_partido.status_code}')
 
-    else:
+
+else:
         print(f'Error al realizar la solicitud: {response.status_code}')
 
+        """
+
+           SELECT equipo, SUM(partidos_ganados) AS total_partidos_ganados
+           FROM (
+               SELECT local AS equipo, COUNT(*) AS partidos_ganados
+               FROM partidos
+               WHERE goles_local > goles_visitante
+               GROUP BY local
+
+               UNION ALL
+
+               SELECT visitante AS equipo, COUNT(*) AS partidos_ganados
+               FROM partidos
+               WHERE goles_visitante > goles_local
+               GROUP BY visitante
+           ) AS partidos_ganados_total
+           GROUP BY equipo
+
+
+           """
 
 
 
-    """
-    
-    SELECT equipo, SUM(partidos_ganados) AS total_partidos_ganados
-    FROM (
-        SELECT local AS equipo, COUNT(*) AS partidos_ganados
-        FROM partidos
-        WHERE goles_local > goles_visitante
-        GROUP BY local
 
-        UNION ALL
 
-        SELECT visitante AS equipo, COUNT(*) AS partidos_ganados
-        FROM partidos
-        WHERE goles_visitante > goles_local
-        GROUP BY visitante
-    ) AS partidos_ganados_total
-    GROUP BY equipo
-    
-    
-    """
