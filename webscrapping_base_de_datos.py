@@ -66,22 +66,18 @@ def process_url(url, cursor, sql_insert, db):
         except Exception as e:
             print(f'Error al procesar datos de {url}: {str(e)}')
 
+
+
 def main():
     db_config = {
-        "host": "localhost",
-        "port": 3310,
-        "user": "root",
-        "password": "",
-
-
+        "host": "bcbey3gcqkkaqp4a7jm6-mysql.services.clever-cloud.com",
+        "user": "uhv0hvx1jyevllcy",
+        "password": "njR6W5pm7Af6y3I9fbT0",
+        "database": "bcbey3gcqkkaqp4a7jm6"
     }
 
-
-
-
-
     sql_create_table = """
-        CREATE TABLE IF NOT EXISTS population (
+    CREATE TABLE IF NOT EXISTS population_2 (
         ranq VARCHAR(255),
         country VARCHAR(255),
         population VARCHAR(255),
@@ -98,7 +94,7 @@ def main():
     """
 
     sql_insert = """
-    INSERT INTO population (ranq, country, population, yearlychange, netchange, density, landarea, migrants, fertrate, medaage, urbanpop, worldshare)
+    INSERT INTO population_2 (ranq, country, population, yearlychange, netchange, density, landarea, migrants, fertrate, medaage, urbanpop, worldshare)
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
 
@@ -114,7 +110,7 @@ def main():
         print("Tabla 'population' creada correctamente o ya existente.")
 
         # Eliminar registros existentes antes de comenzar
-        delete_query = "DELETE FROM population"
+        delete_query = "DELETE FROM population_2"
         cursor.execute(delete_query)
         db.commit()
         print("Registros existentes eliminados correctamente.")
