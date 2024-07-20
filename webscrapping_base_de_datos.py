@@ -72,11 +72,16 @@ def main():
         "port": 3310,
         "user": "root",
         "password": "",
-        "database": "world_population_data"
+
+
     }
 
+
+
+
+
     sql_create_table = """
-    CREATE TABLE IF NOT EXISTS population (
+        CREATE TABLE IF NOT EXISTS population (
         ranq VARCHAR(255),
         country VARCHAR(255),
         population VARCHAR(255),

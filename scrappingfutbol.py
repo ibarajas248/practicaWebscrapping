@@ -6,7 +6,7 @@ import re
 
 # Año que deseas procesar
 year = 2024
-
+id_tabla_partido = 80000
 # Iterar sobre un rango del 1 al 30
 for numero in range(30, 39):
     # Construir la URL dinámicamente usando f-string
@@ -22,7 +22,7 @@ for numero in range(30, 39):
 
         # Extraemos la información de los partidos
         partidos = []
-        partidosConURL=[]
+        partidosConURL = []
         for partido in soup.find_all('li', class_='list-resultado'):
             # Nombre del equipo local
             local = partido.find('div', class_='equipo-local').find('span', class_='nombre-equipo').text
@@ -51,7 +51,7 @@ for numero in range(30, 39):
 
                 try:
 
-                        fecha = datetime.strptime(fecha_str_con_año, '%Y %d/%m %H:%M')
+                    fecha = datetime.strptime(fecha_str_con_año, '%Y %d/%m %H:%M')
 
 
 
@@ -66,12 +66,13 @@ for numero in range(30, 39):
                 continue
 
             # Agregamos la información del partido a la lista
-            partidos.append((local, goles_local, goles_visitante, visitante, fecha))
-            partidosConURL.append((local, goles_local, goles_visitante, visitante, fecha,partido_url))
+            partidos.append((id_tabla_partido, local, goles_local, goles_visitante, visitante, fecha))
+            partidosConURL.append(
+                (id_tabla_partido, local, goles_local, goles_visitante, visitante, fecha, partido_url))
+            id_tabla_partido = id_tabla_partido + 1
 
             # Imprimir los datos del partido para verificar
             print(f'Partido: {local} {goles_local} - {goles_visitante} {visitante} {fecha}{partido_url}')
-
 
         # Conectamos a la base de datos MySQL
         conn = mysql.connector.connect(
@@ -86,6 +87,7 @@ for numero in range(30, 39):
         # Creamos la tabla si no existe
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS partidos (
+            id INT primary key,
             local VARCHAR(255),
             goles_local INT,
             goles_visitante INT,
@@ -100,7 +102,8 @@ for numero in range(30, 39):
 
         # Insertamos los datos en la tabla
         cursor.executemany(
-            'INSERT INTO partidos (local, goles_local, goles_visitante, visitante, fecha) VALUES (%s, %s, %s, %s, %s)', partidos)
+            'INSERT INTO partidos (id, local, goles_local, goles_visitante, visitante, fecha) VALUES (%s,%s, %s, %s, %s, %s)',
+            partidos)
 
         # Confirmamos los cambios
         conn.commit()
@@ -111,43 +114,87 @@ for numero in range(30, 39):
         print('Datos insertados exitosamente en la base de datos.')
 
         # Realizamos el scraping adicional para cada partido
-        for partido in partidosConURL:
-            partido_url = partido[5]
+        # Conectamos a la base de datos MySQL
+
+        conn = mysql.connector.connect(
+            host='localhost',
+            port=3310,
+            user='root',
+            password='',
+            database='world_population_data'
+        )
+
+
+
+
+        cursor = conn.cursor()
+
+        # Creamos la tabla si no existe
+        cursor.execute('''
+                           CREATE TABLE IF NOT EXISTS goles (
+                           id INT AUTO_INCREMENT PRIMARY KEY,
+                           partido_id INT,
+                           jugador VARCHAR(255),
+                           equipo VARCHAR(255),
+                           minuto_marcaje INT,
+                           FOREIGN KEY (partido_id) REFERENCES partidos(id)
+                       );
+
+                           ''')
+        goles = []
+        # Procesamos cada partido para obtener los goleadores
+        for partido_data in partidosConURL:
+            partido_id = partido_data[0]
+            partido_url = partido_data[6]
             response_partido = requests.get(partido_url)
 
             if response_partido.status_code == 200:
                 soup_partido = BeautifulSoup(response_partido.content, 'html.parser')
-                local_scorers = []
-                visitante_scorers = []
 
+                # Extraemos goleadores locales
                 try:
-                    # Extraer goleadores del equipo local
-                    local_scorers_tag = soup_partido.find('div', class_='scr-hdr__team is-local').find('div',
-                                                                                                       class_='scr-hdr__scorers')
+                    local_scorers_tag = soup_partido.find('div', class_='scr-hdr__team is-local').find('div', class_='scr-hdr__scorers')
+
                     if local_scorers_tag:
                         local_scorers = [scorer.text.strip() for scorer in local_scorers_tag.find_all('span')]
+                        for scorer in local_scorers:
+                            cursor.execute(
+                                'INSERT INTO goles (partido_id, jugador, equipo, minuto_marcaje) VALUES (%s, %s, %s, NULL)',
+                                (partido_id, scorer, partido_data[1])
+                            )
+                            conn.commit()
+
+
                 except AttributeError:
                     print(f"No se encontraron goleadores locales en {partido_url}")
 
+                # Extraemos goleadores visitantes
                 try:
-                    # Extraer goleadores del equipo visitante
                     visitante_scorers_tag = soup_partido.find('div', class_='scr-hdr__team is-visitor').find('div',
                                                                                                              class_='scr-hdr__scorers')
                     if visitante_scorers_tag:
                         visitante_scorers = [scorer.text.strip() for scorer in visitante_scorers_tag.find_all('span')]
+                        for scorer in visitante_scorers:
+                            cursor.execute(
+                                'INSERT INTO goles (partido_id, jugador, equipo, minuto_marcaje) VALUES (%s, %s, %s, NULL)',
+                                (partido_id, scorer, partido_data[4])
+                            )
+                            conn.commit()
                 except AttributeError:
                     print(f"No se encontraron goleadores visitantes en {partido_url}")
 
-                print(f'Local Scorers: {local_scorers}')
-                print(f'Visitante Scorers: {visitante_scorers}')
+                print(f'Goleadores registrados para el partido ID {partido_id} '+ f'{partido_url}')
             else:
                 print(f'Error al realizar la solicitud para {partido_url}: {response_partido.status_code}')
 
+        # Cerramos la conexión a la base de datos 'goles'
+        conn.close()
+
 
 else:
-        print(f'Error al realizar la solicitud: {response.status_code}')
+    print(f'Error al realizar la solicitud: {response.status_code}')
 
-        """
+    """
 
            SELECT equipo, SUM(partidos_ganados) AS total_partidos_ganados
            FROM (
@@ -167,8 +214,3 @@ else:
 
 
            """
-
-
-
-
-
