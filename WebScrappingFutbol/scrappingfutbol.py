@@ -4,22 +4,49 @@ import mysql.connector
 from datetime import datetime
 import re
 
+def extraer_nombre(scorer):
+    # Usar expresión regular para capturar solo el nombre
+    match = re.match(r"([^\d]+)", scorer)
+    if match:
+        return match.group(1).strip()
+    return scorer.strip()
+
 def insertar_goleadores(cursor, conn, partido_id, scorers, equipo):
     for scorer in scorers:
-        cursor.execute(
-            'INSERT INTO goles (partido_id, jugador, equipo, minuto_marcaje) VALUES (%s, %s, %s, NULL)',
-            (partido_id, scorer, equipo)
-        )
+        partes = scorer.rsplit(', ', 1)  # Divide desde la derecha por la última coma y espacio
+        if len(partes) == 2:
+            jugador = extraer_nombre(partes[0])
+            minutos_str = partes[1].replace("'", '')  # Eliminar el apóstrofe
+
+            # Dividir los minutos en múltiples registros si hay comas
+            minutos_list = minutos_str.split(', ')
+            for minuto in minutos_list:
+                if minuto:  # Solo insertar si el minuto no está vacío
+                    cursor.execute(
+                        'INSERT INTO goles (partido_id, jugador, equipo, minuto_marcaje) VALUES (%s, %s, %s, NULL)',
+                        (partido_id, jugador, equipo)
+                    )
+        else:
+            jugador = extraer_nombre(partes[0])
+            cursor.execute(
+                'INSERT INTO goles (partido_id, jugador, equipo, minuto_marcaje) VALUES (%s, %s, %s, NULL)',
+                (partido_id, jugador, equipo)
+            )
+
     conn.commit()
+
+
+
 
 # Año que deseas procesar
 year = 2024
 id_tabla_partido = 10000
 
 # Iterar sobre un rango del 1 al 30 ---- jornada
-for numero in range(1, 30):
+for numero in range(1, 5):
     # Construir la URL dinámicamente usando f-string
     url = f'https://colombia.as.com/resultados/futbol/italia/2023_2024/jornada/regular_a_{numero}'
+    #url = f'https://colombia.as.com/resultados/futbol/primera/2024_2025/jornada/regular_a_{numero}'
 
     # Realizamos una solicitud HTTP GET a la URL
     response = requests.get(url)
@@ -34,16 +61,49 @@ for numero in range(1, 30):
         partidosConURL = []
         for partido in soup.find_all('li', class_='list-resultado'):
             # Nombre del equipo local
+
+
             local = partido.find('div', class_='equipo-local').find('span', class_='nombre-equipo').text
 
-            # Resultado del partido
-            resultado_str = partido.find('div', class_='cont-resultado').find('a', class_='resultado').text.strip()
-            partido_url = partido.find('div', class_='cont-resultado').find('a', class_='resultado')['href']
-            goles_local, goles_visitante = resultado_str.split('-')
+            try:
+                resultado_str = partido.find('div', class_='cont-resultado').find('a', class_='resultado')
+                if resultado_str:
+                    resultado_str = resultado_str.text.strip()
+                else:
+                    resultado_str = None
 
-            # Convertir los goles a enteros
-            goles_local = int(goles_local.strip())
-            goles_visitante = int(goles_visitante.strip())
+                if not resultado_str:
+                    resultado_str_sin_comenzar = partido.find('div', class_='cont-resultado no-comenzado').find('a',
+                                                                                                                class_='resultado')
+                    if resultado_str_sin_comenzar:
+                        resultado_str = resultado_str_sin_comenzar.text.strip()
+                    else:
+                        resultado_str = None
+
+                if resultado_str:
+                    goles_local, goles_visitante = resultado_str.split('-')
+
+                    # Convertir los goles a enteros
+                    goles_local = int(goles_local.strip())
+                    goles_visitante = int(goles_visitante.strip())
+
+                else:
+                    goles_local, goles_visitante = 'NULL', 'NULL'
+
+            except AttributeError as e:
+                print(f"Error al obtener el resultado del partido: {e}")
+                resultado_str, partido_url = None, None
+                goles_local, goles_visitante = 'NULL', 'NULL'
+
+
+
+            try:
+
+                partido_url = partido.find('div', class_='cont-resultado').find('a', class_='resultado')['href']
+
+
+            except:
+                print("error al obtener url ")
 
             # Nombre del equipo visitante
             visitante = partido.find('div', class_='equipo-visitante').find('span', class_='nombre-equipo').text
@@ -154,6 +214,14 @@ for numero in range(1, 30):
                             local_scorers = [scorer.text.strip() for scorer in local_scorers_tag.find_all('span')]
                         else:
                             local_scorers = []
+                    if not local_scorers:
+                        teams = soup_partido.find_all('div', class_='team team-a')
+                        for team in teams:
+                            scorers_div = team.find('div', class_='scorers')
+                            if scorers_div:
+                                local_scorers = [scorer.text.strip() for scorer in scorers_div.find_all('span')]
+                                break  # Asumimos que solo hay un div de anotadores por equipo
+
 
                     if local_scorers:
                         insertar_goleadores(cursor, conn, partido_id, local_scorers, partido_data[1])
@@ -164,37 +232,25 @@ for numero in range(1, 30):
                     print(f"Error al extraer goleadores locales en {partido_url}")
 
                 try:
-                    # Extraer goleadores visitantes
-                    visitante_scorers_tag = soup_partido.find('div', class_='scr-hdr__team is-visitor').find('div',
-                                                                                                             class_='scr-hdr__scorers')
-                    visitante_scorers_tag_2 = soup.find_all('div', class_='team team-b')
-
-
-
-
+                    # Primero intentamos encontrar los goleadores de los visitantes usando la primera clase
+                    visitante_scorers_tag = soup_partido.find('div', class_='scr-hdr__team is-visitor')
                     if visitante_scorers_tag:
-                        visitante_scorers = [scorer.text.strip() for scorer in visitante_scorers_tag.find_all('span')]
-
-                    elif visitante_scorers_tag_2:
-                        for team in visitante_scorers_tag_2:
-
-                            scorers_div = team.find('div', class_='scorers').text.strip()
-                            print(scorers_div)
-                            if scorers_div:
-                                # Iterar sobre los <span> dentro del div de anotadores
-                                visitante_scorers = [scorer.text.strip() for scorer in scorers_div.find_all('span')]
-
-
-                           # print(f"Equipo: {team_name} ({team_abbr})")
-                           # print(f"Logo: {team_logo}")
-                           # print(f"Puntaje: {team_score}")
-
-                           # print(f"Anotadores: {scorers}")
-
-                            #print("-" * 40)
-
+                        scorers_div = visitante_scorers_tag.find('div', class_='scr-hdr__scorers')
+                        if scorers_div:
+                            visitante_scorers = [scorer.text.strip() for scorer in scorers_div.find_all('span')]
+                        else:
+                            visitante_scorers = []
                     else:
                         visitante_scorers = []
+
+                    # Si no encontramos los goleadores en el primer caso, buscamos en la segunda clase
+                    if not visitante_scorers:
+                        teams = soup_partido.find_all('div', class_='team team-b')
+                        for team in teams:
+                            scorers_div = team.find('div', class_='scorers')
+                            if scorers_div:
+                                visitante_scorers = [scorer.text.strip() for scorer in scorers_div.find_all('span')]
+                                break  # Asumimos que solo hay un div de anotadores por equipo
 
                     if visitante_scorers:
                         insertar_goleadores(cursor, conn, partido_id, visitante_scorers, partido_data[4])

@@ -95,6 +95,23 @@ def main():
         "database": "world_population_data"
     }
 
+    sql_create_table = """
+       CREATE TABLE IF NOT EXISTS population_2 (
+           ranq VARCHAR(255),
+           country VARCHAR(255),
+           population VARCHAR(255),
+           yearlychange VARCHAR(255),
+           netchange VARCHAR(255),
+           density VARCHAR(255),
+           landarea VARCHAR(255),
+           migrants VARCHAR(255),
+           fertrate VARCHAR(255),
+           medaage VARCHAR(255),
+           urbanpop VARCHAR(255),
+           worldshare VARCHAR(255)
+       )
+       """
+
     sql_insert = """
     INSERT INTO population (ranq, country, population, yearlychange, netchange, density, landarea, migrants, fertrate, medaage, urbanpop, worldshare)
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -118,6 +135,7 @@ def main():
         print(f'Error de MySQL: {str(e)}')
     finally:
         cursor.close()
+
         db.close()
 
 if __name__ == "__main__":
