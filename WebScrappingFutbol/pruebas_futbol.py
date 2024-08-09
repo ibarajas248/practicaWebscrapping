@@ -44,9 +44,9 @@ def insertPartidos():
 
     id_tabla_partido = 10000
 
-    for numero in range(1, 2):
+    for numero in range(1, 20):
         # Construir la URL dinámicamente usando f-string
-        url = f'https://colombia.as.com/resultados/futbol/inglaterra/2024_2025/jornada/regular_a_{numero}'
+        url = f'https://colombia.as.com/resultados/futbol/francia/2018_2019/jornada/regular_a_{numero}'
         #url = f'https://colombia.as.com/resultados/futbol/italia/2023_2024/jornada/regular_a_{numero}'
 
         # Realizamos una solicitud HTTP GET a la URL
